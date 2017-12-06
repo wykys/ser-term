@@ -1,0 +1,59 @@
+#!/usr/bin/python3
+# wykys 2017
+
+import log
+import threading
+from uart import uart
+
+def read(event):
+    log.stdo('reading thread run')
+    tmp = ''
+    raw = []
+    while True:
+        buf = ser.read_byte()
+        if type(buf) is int:
+            if buf != ord('\n') and buf != ord('\r'):
+                tmp += chr(buf)
+                raw.append(buf)
+            elif len(raw) > 0:
+                #log.rx(tmp + ' ' + str(raw))
+                log.rx(tmp)
+                tmp = ''
+                raw = []
+        else:
+            if tmp != '' and tmp != '\n' and tmp != '\r' and len(raw) > 0:
+                #log.rx(tmp + ' ' + str(raw))
+                log.rx(tmp)
+                tmp = ''
+                raw = []
+
+        if kill_event.isSet():
+            exit()
+
+if __name__ == '__main__':
+    kill_event = threading.Event()
+    kill_event.clear()
+
+    ser = uart()
+
+    thread = threading.Thread(target=read, args=(kill_event,))
+    thread.start()
+
+    while True:
+        txt = input(log.PROMPT)
+        if txt == 'exit':
+            log.stdo(log.colors.fg.red + 'exit')
+            kill_event.set()
+            break
+        elif txt[0] == ':':
+            cmd = txt[1::]
+            if cmd == 'info':
+                print('baudrate: ', ser.ser.baudrate)
+                print('bits: ', ser.ser.bytesize)
+                print('parity: ', ser.ser._parity)
+                print('stopbits: ', ser.ser.stopbits)
+            elif 'set bd' in cmd:
+                ser.ser.baudrate = int(cmd.split('set bd ')[1])
+        elif txt != '':
+            ser.write(txt)
+            log.tx(txt)
