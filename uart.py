@@ -1,17 +1,22 @@
 # wykys
 
 import serial
+from serial.tools import list_ports
+
 import time
 import os
-import subprocess
 import log
 
 class uart:
-    def __init__(self):
+    def __init__(self, name='CP2102', baudrate=115200, bytesize=8, parity='N'):
         """ initialization """
-        self.name = 'CP2102'
+        self.name = name
         self.ser = serial.Serial()
-        self.port = self.find_device()
+        self.ser.baudrate = baudrate
+        self.ser.bytesize = bytesize
+        self.ser.parity = parity
+        self.ser.timeout = 0.1                 # in seconds
+        self.ser.port = self.find_device()
         self.open_connection()
 
     def __del__(self):
@@ -23,38 +28,28 @@ class uart:
         time.sleep(0.02)
 
     def find_device(self):
-        """ find port when is connected oscilloscope """
-        dev_folder = '/dev/serial/by-id'
-        dev = ''
-        if os.path.exists(dev_folder):
-            try:
-                dev = subprocess.check_output('ls -l ' + dev_folder + ' | grep ' + self.name, shell=True).decode('utf-8').strip()
-            except subprocess.CalledProcessError as e:
-                pass
+        """ find port when is connected device """
+        for port in list_ports.comports():
+            if port.description == self.name:
+                return port.device
 
-        if not (self.name in dev):
-            log.err(self.name + ' is not connected')
-            exit(1)
+        log.err(self.name + ' is not connected')
+        self.list_ports()
+        exit(1)
 
-        port = '/dev/' + dev.split('../')[-1]
-        log.ok(self.name + ' is connected to ' + port)
-
-        return port
+    def list_ports(self):
+        """ print list all ports """
+        log.stdo('List all connected devices:')
+        for port in list_ports.comports():
+            print('    ', port.device, '\t', port.description)
 
     def open_connection(self):
         """ open connection """
-        self.ser.port = self.port
-        self.ser.baudrate = 38400 # 115200
-        self.ser.stopbits = serial.STOPBITS_ONE
-        self.ser.parity = serial.PARITY_NONE
-        self.ser.bytesize = serial.EIGHTBITS
-
-        self.ser.timeout = 0.1 # in seconds
         try:
             self.ser.open()
-            log.ok('port {} is open'.format(self.port))
+            log.ok('port {} is open'.format(self.ser.port))
         except serial.SerialException:
-            log.err('port {} opening is fail'.format(self.port))
+            log.err('port {} opening is fail'.format(self.ser.port))
             exit(1)
 
         time.sleep(2)
