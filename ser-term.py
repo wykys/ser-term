@@ -2,6 +2,7 @@
 # wykys 2017
 
 import log
+import argparse
 import threading
 from uart import uart
 
@@ -16,13 +17,11 @@ def read(event):
                 tmp += chr(buf)
                 raw.append(buf)
             elif len(raw) > 0:
-                #log.rx(tmp + ' ' + str(raw))
                 log.rx(tmp)
                 tmp = ''
                 raw = []
         else:
             if tmp != '' and tmp != '\n' and tmp != '\r' and len(raw) > 0:
-                #log.rx(tmp + ' ' + str(raw))
                 log.rx(tmp)
                 tmp = ''
                 raw = []
@@ -31,10 +30,15 @@ def read(event):
             exit()
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser('ser-term')
+    parser.add_argument('-n', '--name', dest='name', action='store', default='CP2102', help='device name')
+    parser.add_argument('-b', '--baud', dest='baud', action='store', type=int, default=115200, choices=[50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200], help='baud rate')
+    args = parser.parse_args()
+
     kill_event = threading.Event()
     kill_event.clear()
 
-    ser = uart()
+    ser = uart(name=args.name, baudrate=args.baud)
 
     thread = threading.Thread(target=read, args=(kill_event,))
     thread.start()
