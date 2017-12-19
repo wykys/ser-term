@@ -8,7 +8,7 @@ import os
 import log
 
 class uart:
-    def __init__(self, name='CP2102', baudrate=115200, bytesize=8, parity='N'):
+    def __init__(self, name='CP2102', baudrate=115200, bytesize=8, parity='N', port=None):
         """ initialization """
         self.name = name
         self.ser = serial.Serial()
@@ -16,7 +16,10 @@ class uart:
         self.ser.bytesize = bytesize
         self.ser.parity = parity
         self.ser.timeout = 0.1                 # in seconds
-        self.ser.port = self.find_device()
+        if port == None:
+            self.ser.port = self.find_device()
+        else:
+            self.ser.port = port
         self.open_connection()
 
     def __del__(self):

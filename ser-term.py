@@ -33,12 +33,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('ser-term')
     parser.add_argument('-n', '--name', dest='name', action='store', default='CP2102', help='device name')
     parser.add_argument('-b', '--baud', dest='baud', action='store', type=int, default=115200, choices=[50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200], help='baud rate')
+    parser.add_argument('-P', '--port', dest='port', action='store', default=None, help='device port')
     args = parser.parse_args()
 
     kill_event = threading.Event()
     kill_event.clear()
 
-    ser = uart(name=args.name, baudrate=args.baud)
+    ser = uart(name=args.name, baudrate=args.baud, port=args.port)
 
     thread = threading.Thread(target=read, args=(kill_event,))
     thread.start()
