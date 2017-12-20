@@ -15,8 +15,10 @@ def ok(s = ''):
 def stdo(s = ''):
     print( colors.fg.white + colors.bold + s + colors.reset, file=sys.stdout)
 
-def rx(s = ''):
-    print( '\r' + colors.fg.orange + colors.bold + 'Rx: ' + colors.reset + colors.fg.orange + s + colors.reset + '\n' + PROMPT, file=sys.stdout, end='')
+def rx(s = '', prompt=True):
+    print( '\r' + colors.fg.orange + colors.bold + 'Rx: ' + colors.reset + colors.fg.orange + s + colors.reset, file=sys.stdout, end='')
+    if prompt:
+        print('\n' + PROMPT, file=sys.stdout, end='')
 
 def tx(s = ''):
     print( colors.fg.green + colors.bold + 'Tx: ' + colors.reset + colors.fg.green + s + colors.reset, file=sys.stdout)
