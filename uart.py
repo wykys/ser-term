@@ -65,14 +65,24 @@ class uart:
 
     def read_byte(self):
         """ read one byte """
-        tmp = self.ser.read(1)
+        try:
+            tmp = self.ser.read(1)
+        except serial.SerialException:
+            log.err('the device was disconnected')
+            os.system('killall ser-term')
+
         if tmp == b'':
             return None
         return int.from_bytes(tmp, byteorder='little', signed=False)
 
     def send_byte(self, byte):
         """ write one byte """
-        self.ser.write(bytes((byte,)))
+        try:
+            self.ser.write(bytes((byte,)))
+        except serial.SerialException:
+            log.err('the device was disconnected')
+            os.system('killall ser-term')
+
         time.sleep(0.01)
 
     def write(self, cmd):

@@ -6,12 +6,16 @@ import argparse
 import threading
 from uart import uart
 
-def read(event, prompt):
+def read(kill_event, prompt):
     log.stdo('reading thread run')
     tmp = ''
     raw = []
     while True:
         buf = ser.read_byte()
+
+        if kill_event.isSet():
+            exit()
+
         if type(buf) is int:
             if buf != ord('\n') and buf != ord('\r'):
                 tmp += chr(buf)
@@ -25,9 +29,6 @@ def read(event, prompt):
                 log.rx(tmp, prompt)
                 tmp = ''
                 raw = []
-
-        if kill_event.isSet():
-            exit()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ser-term')
@@ -51,7 +52,7 @@ if __name__ == '__main__':
         if txt == 'exit':
             log.stdo(log.colors.fg.red + 'exit')
             kill_event.set()
-            break
+            exit()
         elif txt[0] == ':':
             cmd = txt[1::]
             if cmd == 'info':
