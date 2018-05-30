@@ -33,7 +33,7 @@ class uart:
     def find_device(self):
         """ find port when is connected device """
         for port in list_ports.comports():
-            if port.description == self.name:
+            if self.name in port.description:
                 return port.device
 
         log.err(self.name + ' is not connected')
