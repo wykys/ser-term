@@ -43,4 +43,17 @@ parser.add_argument(
     help='device port'
 )
 
+parser.add_argument(
+    '-e',
+    '--end-line',
+    dest='end_line',
+    action='store',
+    type=str,
+    default='LF',
+    choices=[
+        'LF', 'CR', 'CRLF'
+    ],
+    help='end line'
+)
+
 args = parser.parse_args()

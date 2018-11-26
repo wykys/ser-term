@@ -79,16 +79,21 @@ class TUI(object):
                 MenuItem(
                     text='[F4] End line',
                     children=[
-                        MenuItem('LF   \\n'),
-                        MenuItem('CR   \\r'),
-                        MenuItem('CRLF \\r\\n'),
+                        MenuItem('LF   \\n', handler=lambda: self.end_line_update('\n')),
+                        MenuItem('CR   \\r', handler=lambda: self.end_line_update('\r')),
+                        MenuItem('CRLF \\r\\n', handler=lambda: self.end_line_update('\r\n')),
                     ]
                 ),
                 MenuItem(text='[F10] Quit', handler=self.key_application_quit),
             ],
         )
 
-        self.end_line = '\r\n'
+        if args.end_line == 'LF':
+            self.end_line = '\n'
+        elif args.end_line == 'CR':
+            self.end_line = '\r'
+        else:
+            self.end_line = '\r\n'
         self.end_line_update()
 
         self.layout = Layout(self.menu)
@@ -123,23 +128,34 @@ class TUI(object):
 
     @key_bindings.add('f4')
     def key_end_line(self, event=None):
-        tui.end_line_update()
+        tui.end_line_update(shift=True)
 
     def cmd_line_accept_handler(self, handler):
         line = ''.join(('Tx: ', handler.text))
         console_append(self.console, line)
         UART.queue_tx.put_nowait(handler.text + self.end_line)
 
-    def end_line_update(self):
+    def end_line_update(self, symbol=None, shift=None):
+        if symbol:
+            self.end_line = symbol
+
+        if shift:
+            if self.end_line == '\n':
+                self.end_line = '\r'
+                self.menu.menu_items[-2].text = '[F4] End line CR'
+            elif self.end_line == '\r':
+                self.end_line = '\r\n'
+                self.menu.menu_items[-2].text = '[F4] End line CRLF'
+            else:
+                self.end_line = '\n'
+                self.menu.menu_items[-2].text = '[F4] End line LF'
+
         if self.end_line == '\n':
-            self.end_line = '\r'
-            self.menu.menu_items[-2].text = '[F4] End line CR'
-        elif self.end_line == '\r':
-            self.end_line = '\r\n'
-            self.menu.menu_items[-2].text = '[F4] End line CRLF'
-        else:
-            self.end_line = '\n'
             self.menu.menu_items[-2].text = '[F4] End line LF'
+        elif self.end_line == '\r':
+            self.menu.menu_items[-2].text = '[F4] End line CR'
+        else:
+            self.menu.menu_items[-2].text = '[F4] End line CRLF'
 
     def run(self):
         prompt_toolkit.eventloop.use_asyncio_event_loop()
