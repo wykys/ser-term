@@ -57,9 +57,17 @@ class UART(object):
         try:
             while not self._is_conf:
                 await asyncio.sleep(0.1)
+            msg = ''
             while True:
-                msg = await self._reader.readuntil(b'\n')
-                self.queue_rx.put_nowait(msg.strip().decode())
+                symbol = await self._reader.read(n=1)
+                symbol = symbol.decode()
+                if symbol == '\r' or symbol == '\n':
+                    if len(msg) > 0:
+                        self.queue_rx.put_nowait(msg)
+                        msg = ''
+                else:
+                    msg += symbol
+
         except asyncio.CancelledError:
             pass
 
