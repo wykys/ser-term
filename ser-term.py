@@ -1,67 +1,132 @@
-#!/usr/bin/python3
-# wykys 2017
+#!/usr/bin/env python3
+# wykys
+# tui for ser-term
 
-import log
-import argparse
-import threading
-from uart import uart
+import asyncio
 
-def read(kill_event, prompt):
-    log.stdo('reading thread run')
-    tmp = ''
-    raw = []
+import prompt_toolkit
+from prompt_toolkit import HTML, Application
+from prompt_toolkit.application.current import get_app
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding.bindings.focus import focus_next, focus_previous
+from prompt_toolkit.layout import HSplit, Layout, VSplit
+from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.widgets import (
+    Box,
+    Button,
+    Frame,
+    Label,
+    MenuContainer,
+    MenuItem,
+    TextArea,
+)
+
+from lexer import SerTermLexer
+from server import PortServer
+from uart import UART
+from app_args import args
+
+
+def console_append(console, text):
+    max_lines = 100
+    console.text = ''.join((text, '\n', console.text))
+    lines = console.text.split('\n')
+    if len(lines) > max_lines:
+        console.text = ''.join(line + '\n' for line in lines[:max_lines])
+
+
+async def read(console):
     while True:
-        buf = ser.read_byte()
+        rx = await UART.queue_rx.get()
+        line = ''.join(('Rx: ', rx))
+        console_append(console, line)
+        UART.queue_rx.task_done()
+        await asyncio.sleep(0.1)
 
-        if kill_event.isSet():
-            exit()
 
-        if type(buf) is int:
-            if buf != ord('\n') and buf != ord('\r'):
-                tmp += chr(buf)
-                raw.append(buf)
-            elif len(raw) > 0:
-                log.rx(tmp, prompt)
-                tmp = ''
-                raw = []
-        else:
-            if tmp != '' and tmp != '\n' and tmp != '\r' and len(raw) > 0:
-                log.rx(tmp, prompt)
-                tmp = ''
-                raw = []
+class TUI(object):
+    key_bindings = KeyBindings()
+
+    def __init__(self):
+        self.console = TextArea(
+            scrollbar=True,
+            focusable=False,
+            line_numbers=False,
+            lexer=PygmentsLexer(SerTermLexer),
+        )
+
+        self.cmd_line = TextArea(
+            multiline=False,
+            prompt=HTML('<orange>>>> </orange>'),
+            style='bg: cyan',
+            accept_handler=self.cmd_line_accept_handler,
+            history=FileHistory('.ser-term-hist'),
+            auto_suggest=AutoSuggestFromHistory(),
+        )
+
+        self.root = HSplit([
+            self.console,
+            self.cmd_line,
+        ])
+
+        self.menu = MenuContainer(
+            self.root,
+            menu_items=[
+                MenuItem(text='[F2] open port', handler=self.uart_open),
+                MenuItem(text='[F3] close port', handler=self.uart_close),
+                MenuItem(text='[F10] quit', handler=self.application_quit),
+            ]
+        )
+
+        self.layout = Layout(self.menu)
+        self.layout.focus(self.root)
+
+        self.key_bindings.add('s-tab')(focus_previous)
+        self.key_bindings.add('tab')(focus_next)
+
+        self.app = Application(
+            layout=self.layout,
+            key_bindings=self.key_bindings,
+            full_screen=True,
+            mouse_support=True,
+        )
+
+    @key_bindings.add('f10')
+    @key_bindings.add('c-c')
+    @key_bindings.add('c-d')
+    @key_bindings.add('c-x')
+    @key_bindings.add('c-q')
+    @key_bindings.add('escape')
+    def application_quit(self, event=None):
+        get_app().exit()
+
+    @key_bindings.add('f2')
+    def uart_open(self, event=None):
+        UART.run()
+
+    @key_bindings.add('f3')
+    def uart_close(self, event=None):
+        UART.stop()
+
+    def cmd_line_accept_handler(self, handler):
+        line = ''.join(('Tx: ', handler.text))
+        console_append(self.console, line)
+        UART.queue_tx.put_nowait(handler.text + '\r\n')
+
+    def run(self):
+        prompt_toolkit.eventloop.use_asyncio_event_loop()
+        asyncio.get_event_loop().run_until_complete(
+            self.app.run_async().to_asyncio_future()
+        )
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('ser-term')
-    parser.add_argument('-d', '--device', dest='device', action='store', default='CP2102', help='device name')
-    parser.add_argument('-b', '--baud', dest='baud', action='store', type=int, default=115200, choices=[50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200], help='baud rate')
-    parser.add_argument('-P', '--port', dest='port', action='store', default=None, help='device port')
-    parser.add_argument('-n', '--no-prompt', dest='no_prompt', action='store_true', default=False, help='print prompt after reacive')
-    args = parser.parse_args()
-    prompt = not args.no_prompt
-
-    kill_event = threading.Event()
-    kill_event.clear()
-
-    ser = uart(name=args.device, baudrate=args.baud, port=args.port)
-
-    thread = threading.Thread(target=read, args=(kill_event, prompt))
-    thread.start()
-
-    while True:
-        txt = input(log.PROMPT)
-        if txt == 'exit':
-            log.stdo(log.colors.fg.red + 'exit')
-            kill_event.set()
-            exit()
-        elif txt[0] == ':':
-            cmd = txt[1::]
-            if cmd == 'info':
-                print('baudrate: ', ser.ser.baudrate)
-                print('bits: ', ser.ser.bytesize)
-                print('parity: ', ser.ser._parity)
-                print('stopbits: ', ser.ser.stopbits)
-            elif 'set bd' in cmd:
-                ser.ser.baudrate = int(cmd.split('set bd ')[1])
-        elif txt != '':
-            ser.write(txt)
-            log.tx(txt)
+    UART.__init__(args.port, args.baudrate)
+    UART.run()
+    tui = TUI()
+    server = PortServer(tui.console)
+    asyncio.ensure_future(read(tui.console))
+    server.run()
+    tui.run()

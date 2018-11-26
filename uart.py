@@ -1,94 +1,101 @@
+#!/usr/bin/env python3
 # wykys
+# library for basic async UART manipulation
 
-import serial
-from serial.tools import list_ports
 
-import time
-import os
-import log
+import asyncio
+import serial_asyncio
+from singleton import singleton
 
-class uart:
-    def __init__(self, name='CP2102', baudrate=115200, bytesize=8, parity='N', port=None):
-        """ initialization """
-        self.name = name
-        self.ser = serial.Serial()
-        self.ser.baudrate = baudrate
-        self.ser.bytesize = bytesize
-        self.ser.parity = parity
-        self.ser.timeout = 0.1                 # in seconds
-        if port == None:
-            self.ser.port = self.find_device()
-        else:
-            self.ser.port = port
-        self.open_connection()
 
-    def __del__(self):
-        """ destructor """
-        self.close_connection()
+@singleton
+class UART(object):
+    def __init__(
+                self,
+                port='',
+                baudrate=115200,
+                bytesize=8,
+                parity='N',
+                stopbits=1,
+            ):
+        self.port = port
+        self.baudrate = baudrate
+        self.bytesize = bytesize
+        self.parity = parity
+        self.stopbits = stopbits
+        """
+        self.timeout = 0
+        self.xonxoff = False
+        self.rtscts = False
+        self.dsrdtr = False
+        """
 
-    def cmd_delay(self):
-        """ command delay """
-        time.sleep(0.02)
+        self.queue_rx = asyncio.Queue()
+        self.queue_tx = asyncio.Queue()
 
-    def find_device(self):
-        """ find port when is connected device """
-        for port in list_ports.comports():
-            if self.name in port.description:
-                return port.device
+        self.is_open = False
+        self._is_conf = False
 
-        log.err(self.name + ' is not connected')
-        self.list_ports()
-        exit(1)
+        self._reader = None
+        self._writer = None
+        self._task_recv = None
+        self._task_send = None
 
-    def list_ports(self):
-        """ print list all ports """
-        log.stdo('List all connected devices:')
-        for port in list_ports.comports():
-            print('    ', port.device, '\t', port.description)
-
-    def open_connection(self):
-        """ open connection """
+    async def _send(self):
         try:
-            self.ser.open()
-            log.ok('port {} is open'.format(self.ser.port))
-        except serial.SerialException:
-            log.err('port {} opening is fail'.format(self.ser.port))
-            exit(1)
+            while not self._is_conf:
+                await asyncio.sleep(0.1)
+            while True:
+                msg = await self.queue_tx.get()
+                self._writer.write(msg.encode())
+                self.queue_tx.task_done()
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            pass
 
-        time.sleep(2)
-        self.ser.reset_input_buffer()
-
-    def close_connection(self):
-        """ end connection """
-        self.ser.close()
-        log.ok('port is close')
-
-    def read_byte(self):
-        """ read one byte """
+    async def _recv(self):
         try:
-            tmp = self.ser.read(1)
-        except serial.SerialException:
-            log.err('the device was disconnected')
-            os.system('killall ser-term')
+            while not self._is_conf:
+                await asyncio.sleep(0.1)
+            while True:
+                msg = await self._reader.readuntil(b'\n')
+                self.queue_rx.put_nowait(msg.strip().decode())
+        except asyncio.CancelledError:
+            pass
 
-        if tmp == b'':
-            return None
-        return int.from_bytes(tmp, byteorder='little', signed=False)
+    async def _conf(self):
+        self._reader, self._writer = await serial_asyncio.open_serial_connection(
+            url=self.port,
+            baudrate=self.baudrate,
+            bytesize=self.bytesize,
+            parity=self.parity,
+            stopbits=self.stopbits,
+        )
+        self._is_conf = True
 
-    def send_byte(self, byte):
-        """ write one byte """
-        try:
-            self.ser.write(bytes((byte,)))
-        except serial.SerialException:
-            log.err('the device was disconnected')
-            os.system('killall ser-term')
+    def run(self):
+        if not self.is_open:
+            asyncio.ensure_future(self._conf())
+            self._task_recv = asyncio.ensure_future(self._recv())
+            self._task_send = asyncio.ensure_future(self._send())
+            self.is_open = True
 
-        time.sleep(0.01)
+    def stop(self):
+        self.is_open = False
+        self._task_recv.cancel()
+        self._task_send.cancel()
 
-    def write(self, cmd):
-        """ send command """
-        if type(cmd) == str:
-            for c in cmd:
-                self.send_byte(ord(c))
-                self.cmd_delay()
-            self.send_byte(ord('\r'))
+
+UART = UART()
+
+
+################################################################################
+# Testing
+################################################################################
+if __name__ == '__main__':
+    UART.__init__('/dev/ttyUSB0', 38400)
+    UART.queue_tx.put_nowait('AT\r\n')
+    UART.run()
+    UART.stop()
+    loop = asyncio.get_event_loop()
+    loop.run_forever()

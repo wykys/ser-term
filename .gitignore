@@ -106,3 +106,6 @@ venv.bak/
 
 # Atom
 .tags*
+
+# ser-term
+.ser-term-hist
