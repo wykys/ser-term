@@ -81,7 +81,6 @@ class TUI(object):
                     children=[
                         MenuItem(
                             str(bd),
-                            #handler=lambda: self.baudrate_update(baudrate=int(bd)))
                             handler=(lambda bd: lambda: self.baudrate_update(baudrate=int(bd)))(bd))
                         for bd in BAUDRATE
                     ],
