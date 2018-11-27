@@ -2,6 +2,7 @@
 # arguments parser for ser-term
 
 import argparse
+from uart import BAUDRATE
 
 parser = argparse.ArgumentParser('ser-term')
 
@@ -12,25 +13,7 @@ parser.add_argument(
     action='store',
     type=int,
     default=115200,
-    choices=[
-        50,
-        75,
-        110,
-        134,
-        150,
-        200,
-        300,
-        600,
-        1200,
-        1800,
-        2400,
-        4800,
-        9600,
-        19200,
-        38400,
-        57600,
-        115200,
-    ],
+    choices=BAUDRATE,
     help='baud rate'
 )
 

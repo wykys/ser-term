@@ -25,7 +25,7 @@ from prompt_toolkit.widgets import (
 
 from lexer import SerTermLexer
 from server import PortServer
-from uart import UART
+from uart import UART, BAUDRATE
 from app_args import args
 
 
@@ -77,12 +77,22 @@ class TUI(object):
                 MenuItem(text='[F2] Open port', handler=self.key_uart_open),
                 MenuItem(text='[F3] Close port', handler=self.key_uart_close),
                 MenuItem(
-                    text='[F4] End line',
+                    text='[F4] Baudrate',
+                    children=[
+                        MenuItem(
+                            str(bd),
+                            #handler=lambda: self.baudrate_update(baudrate=int(bd)))
+                            handler=(lambda bd: lambda: self.baudrate_update(baudrate=int(bd)))(bd))
+                        for bd in BAUDRATE
+                    ],
+                ),
+                MenuItem(
+                    text='[F5] End line',
                     children=[
                         MenuItem('LF   \\n', handler=lambda: self.end_line_update('\n')),
                         MenuItem('CR   \\r', handler=lambda: self.end_line_update('\r')),
                         MenuItem('CRLF \\r\\n', handler=lambda: self.end_line_update('\r\n')),
-                    ]
+                    ],
                 ),
                 MenuItem(text='[F10] Quit', handler=self.key_application_quit),
             ],
@@ -95,6 +105,7 @@ class TUI(object):
         else:
             self.end_line = '\r\n'
         self.end_line_update()
+        self.baudrate_update()
 
         self.layout = Layout(self.menu)
         self.layout.focus(self.root)
@@ -127,6 +138,10 @@ class TUI(object):
         UART.stop()
 
     @key_bindings.add('f4')
+    def key_baudrate(self, event=None):
+        tui.baudrate_update(shift=True)
+
+    @key_bindings.add('f5')
     def key_end_line(self, event=None):
         tui.end_line_update(shift=True)
 
@@ -142,20 +157,35 @@ class TUI(object):
         if shift:
             if self.end_line == '\n':
                 self.end_line = '\r'
-                self.menu.menu_items[-2].text = '[F4] End line CR'
+                self.menu.menu_items[-2].text = '[F5] End line CR'
             elif self.end_line == '\r':
                 self.end_line = '\r\n'
-                self.menu.menu_items[-2].text = '[F4] End line CRLF'
+                self.menu.menu_items[-2].text = '[F5] End line CRLF'
             else:
                 self.end_line = '\n'
-                self.menu.menu_items[-2].text = '[F4] End line LF'
+                self.menu.menu_items[-2].text = '[F5] End line LF'
 
         if self.end_line == '\n':
-            self.menu.menu_items[-2].text = '[F4] End line LF'
+            self.menu.menu_items[-2].text = '[F5] End line LF'
         elif self.end_line == '\r':
-            self.menu.menu_items[-2].text = '[F4] End line CR'
+            self.menu.menu_items[-2].text = '[F5] End line CR'
         else:
-            self.menu.menu_items[-2].text = '[F4] End line CRLF'
+            self.menu.menu_items[-2].text = '[F5] End line CRLF'
+
+    def baudrate_update(self, baudrate=None, shift=None):
+        if baudrate in BAUDRATE:
+            UART.baudrate = baudrate
+            UART.stop()
+            UART.run()
+
+        if shift:
+            i = BAUDRATE.index(UART.baudrate)
+            i = 0 if i+1 >= len(BAUDRATE) else i+1
+            UART.baudrate = BAUDRATE[i]
+            UART.stop()
+            UART.run()
+
+        self.menu.menu_items[-3].text = '[F4] Baudrate ' + str(UART.baudrate)
 
     def run(self):
         prompt_toolkit.eventloop.use_asyncio_event_loop()
