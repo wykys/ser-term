@@ -56,4 +56,14 @@ parser.add_argument(
     help='end line'
 )
 
+parser.add_argument(
+    '-d',
+    '--delay',
+    dest='delay',
+    action='store',
+    type=float,
+    default=0,
+    help='time delay between symbols in seconds'
+)
+
 args = parser.parse_args()

@@ -17,12 +17,14 @@ class UART(object):
                 bytesize=8,
                 parity='N',
                 stopbits=1,
+                delay=0
             ):
         self.port = port
         self.baudrate = baudrate
         self.bytesize = bytesize
         self.parity = parity
         self.stopbits = stopbits
+        self.delay = delay
         """
         self.timeout = 0
         self.xonxoff = False
@@ -47,7 +49,12 @@ class UART(object):
                 await asyncio.sleep(0.1)
             while True:
                 msg = await self.queue_tx.get()
-                self._writer.write(msg.encode())
+                if self.delay:
+                    for char in msg:
+                        self._writer.write(char.encode())
+                        await asyncio.sleep(self.delay)
+                else:
+                    self._writer.write(msg.encode())
                 self.queue_tx.task_done()
                 await asyncio.sleep(0.01)
         except asyncio.CancelledError:

@@ -165,7 +165,7 @@ class TUI(object):
 
 
 if __name__ == '__main__':
-    UART.__init__(args.port, args.baudrate)
+    UART.__init__(args.port, args.baudrate, delay=args.delay)
     UART.run()
     tui = TUI()
     server = PortServer(tui.console)
